@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import ssl
 from typing import Dict, Any, Optional
 
 import asyncpg
@@ -43,12 +44,19 @@ app.add_middleware(
 
 # --- Database Connection Pool ---
 DB_POOL: Optional[asyncpg.Pool] = None
-
 async def get_db_pool() -> asyncpg.Pool:
     global DB_POOL
     if DB_POOL is None:
         try:
-            DB_POOL = await asyncpg.create_pool(settings.database_url)
+            ssl_context = None
+            # Enable SSL for hosted databases like Render
+            if "localhost" not in settings.database_url and "127.0.0.1" not in settings.database_url:
+                ssl_context = ssl.create_default_context()
+
+            DB_POOL = await asyncpg.create_pool(
+                settings.database_url,
+                ssl=ssl_context
+            )
             
             # Create table if it doesn't exist
             async with DB_POOL.acquire() as connection:
@@ -223,4 +231,5 @@ async def confirm_akinator_guess(payload: GuessConfirmationPayload):
 # To run locally (example with Uvicorn):
 # 1. Create a .env file with your DATABASE_URL.
 #    Example .env content:
+
 #    DATABASE_URL="postgresql://your_user:your_password@your_host:your_port/your_db"
